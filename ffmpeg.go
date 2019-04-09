@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// Runner runs FFmpeg.
+// A Runner runs FFmpeg.
 type Runner interface {
 	// Run starts a FFmpeg process and waits for its exit.
 	// The ctx is used to cancel the process while it is
@@ -15,22 +15,24 @@ type Runner interface {
 	Run(ctx context.Context, arg string) error
 }
 
-// Hook provides access to the underlying Cmd.
+// A Hook provides access to the underlying Cmd.
 type Hook func(cmd *exec.Cmd)
 
-// ErrHook provides access to the underlying Cmd,
-// and the error returned to indicate the caller.
+// An ErrHook provides access to the underlying Cmd
+// and return an error.
 type ErrHook func(cmd *exec.Cmd) error
 
-// runner implements Runner with additional hooks.
-type runner struct {
+// A HookedRunner allows hooks to access the underlying
+// FFmpeg Command before/after FFmpeg starts and when
+// the exit signal received.
+type HookedRunner struct {
 	path string // the path of FFmpeg binary
 	pre  ErrHook
 	post Hook
 	exit Hook
 }
 
-func (r *runner) Run(ctx context.Context, arg string) error {
+func (r *HookedRunner) Run(ctx context.Context, arg string) error {
 	// look for binary path
 	path, err := exec.LookPath(r.path)
 	if err != nil {
@@ -79,14 +81,14 @@ func (r *runner) Run(ctx context.Context, arg string) error {
 	return err
 }
 
-type runnerOption func(r *runner)
+type runnerOption func(r *HookedRunner)
 
-// NewRunner returns a Runner.
-//
+// HookRunner returns a Runner with different hooks.
 // The default Runner searches ffmpeg from system PATH，
-// and kill the process when receiving a exit signal.
-func NewRunner(opts ...runnerOption) Runner {
-	r := &runner{
+// and kill (-9) the process when receiving a exit signal.
+// The underlying implementation is a *HookedRunner.
+func HookRunner(opts ...runnerOption) Runner {
+	r := &HookedRunner{
 		path: "ffmpeg",
 		exit: func(cmd *exec.Cmd) {
 			cmd.Process.Kill()
@@ -103,14 +105,15 @@ func NewRunner(opts ...runnerOption) Runner {
 // CustomPath sets the ffmpeg binary path.
 // It should be able to found by exec.LookPath.
 func CustomPath(p string) runnerOption {
-	return func(r *runner) {
+	return func(r *HookedRunner) {
 		r.path = p
 	}
 }
 
 // PreHook provides a hook that runs before the cmd starts.
+// A non-nil error returned would stop the cmd.
 func PreHook(h ErrHook) runnerOption {
-	return func(r *runner) {
+	return func(r *HookedRunner) {
 		r.pre = h
 	}
 }
@@ -119,14 +122,14 @@ func PreHook(h ErrHook) runnerOption {
 // cmd starts. The runner waits for the cmd's exit
 // after this hook.
 func PostHook(h Hook) runnerOption {
-	return func(r *runner) {
+	return func(r *HookedRunner) {
 		r.post = h
 	}
 }
 
 // DoneHook provides a hook that should exit ffmpeg.
 func DoneHook(h Hook) runnerOption {
-	return func(r *runner) {
+	return func(r *HookedRunner) {
 		r.exit = h
 	}
 }
