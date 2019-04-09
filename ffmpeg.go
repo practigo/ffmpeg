@@ -1,3 +1,7 @@
+/*
+Package ffmpeg provides runners for running a ffmpeg process
+from Go code.
+*/
 package ffmpeg
 
 import (
