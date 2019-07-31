@@ -36,6 +36,8 @@ type HookedRunner struct {
 	exit Hook
 }
 
+// Run runs the command (path + arg) and waits for its exit
+// or the context timeout.
 func (r *HookedRunner) Run(ctx context.Context, arg string) error {
 	// look for binary path
 	path, err := exec.LookPath(r.path)
@@ -85,11 +87,10 @@ func (r *HookedRunner) Run(ctx context.Context, arg string) error {
 	return err
 }
 
-// HookRunner returns a Runner with different hooks.
+// HookRunner returns a HookedRunner.
 // The default Runner searches ffmpeg from system PATH，
 // and kill (-9) the process when receiving a exit signal.
-// The underlying implementation is a *HookedRunner.
-func HookRunner(opts ...func(r *HookedRunner)) Runner {
+func HookRunner(opts ...func(r *HookedRunner)) *HookedRunner {
 	r := &HookedRunner{
 		path: "ffmpeg",
 		exit: func(cmd *exec.Cmd) {
